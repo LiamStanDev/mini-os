@@ -1,0 +1,12 @@
+[package]
+name = "os"
+version = "0.1.0"
+authors = ["Liam Lin"]
+edition = "2024"
+
+[dependencies]
+log = "0.4"
+sbi-rt = { version = "0.0.2", features = ["legacy"] }
+
+[profile.release]
+debug = true
