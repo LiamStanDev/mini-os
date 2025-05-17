@@ -28,14 +28,7 @@ OBJCOPY := rust-objcopy --binary-architecture=riscv64
 DISASM ?= -x
 
 .PHONY: build
-build: env $(KERNEL_BIN)
-
-.PHONY: env
-env:
-	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
-	cargo install cargo-binutils
-	rustup component add rust-src
-	rustup component add llvm-tools
+build: $(KERNEL_BIN)
 
 .PHONY: clean
 clean:
@@ -43,6 +36,7 @@ clean:
 
 .PHONY: kernel
 kernel:
+	@cd ../user && make build
 	@echo Platform: $(BOARD)
 	@cargo build $(MODE_ARG)
 

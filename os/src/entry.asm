@@ -1,3 +1,5 @@
+ # NOTE: the code is grow from low address to high address
+
   .section .text.entry
   .globl _start
 _start:

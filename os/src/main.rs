@@ -2,24 +2,31 @@
 #![no_main]
 
 use core::arch::global_asm;
-use log::{debug, error, info, trace, warn};
+use log::*;
 
 #[macro_use]
 mod console;
+mod batch;
 mod lang_items;
 mod logging;
 mod sbi;
+mod stack_trace;
+mod sync;
+mod syscall;
+pub(crate) mod trap;
 
 global_asm!(include_str!("entry.asm"));
+global_asm!(include_str!("link_app.S"));
 
 fn clear_bss() {
     unsafe extern "C" {
         safe fn sbss();
         safe fn ebss();
     }
-    (sbss as usize..ebss as usize).for_each(|addr| unsafe {
-        (addr as *mut u8).write_volatile(0);
-    })
+    unsafe {
+        core::slice::from_raw_parts_mut(sbss as usize as *mut u8, ebss as usize - sbss as usize)
+            .fill(0);
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -57,6 +64,8 @@ pub fn rust_main() -> ! {
         boot_stack_top as usize, boot_stack_lower_bound as usize
     );
     error!("[kernel] .bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
-
-    sbi::shutdown(false);
+    panic!("[kernel] panic test!");
+    trap::init();
+    batch::init();
+    batch::run_next_app();
 }
