@@ -47,9 +47,6 @@ __alltraps:
   .globl __restore
   .align 2 # riscv specification
 __restore:
-  # a0: cx_addr which is TrapContext
-  mv sp, a0
-
   # sp -> kernel stack, sscratch -> user stack
   # restore csr
   ld t0, 32*8(sp) # TrapContext.sstatus
@@ -71,4 +68,5 @@ __restore:
   # pop 'TrapContext'
   addi sp, sp, 34*8
   csrrw sp, sscratch, sp
+  # sp -> user stack, sscratch -> kernel stack
   sret

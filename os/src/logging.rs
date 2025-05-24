@@ -3,7 +3,7 @@ use log::{Level, LevelFilter, Log};
 struct SimpleLogger;
 
 impl Log for SimpleLogger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
         true // show all levels
     }
 

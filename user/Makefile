@@ -13,8 +13,8 @@ OBJCOPY := rust-objcopy --binary-architecture=riscv64
 build: binary
 
 .PHONY: elf
-elf:
-	@cargo build --release
+elf: $(APPS)
+	@python3 build.py
 
 .PHONY: binary
 binary: elf
