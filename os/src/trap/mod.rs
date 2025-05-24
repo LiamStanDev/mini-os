@@ -2,6 +2,8 @@ use core::arch::global_asm;
 
 use self::context::TrapContext;
 use crate::syscall::syscall;
+use crate::task::suspend_current_and_run_next;
+use crate::timer::{self, set_next_trigger};
 use log::trace;
 use riscv::interrupt::{Exception, Interrupt, Trap};
 use riscv::register;
@@ -24,6 +26,14 @@ pub(crate) fn init() {
     }
 }
 
+pub(crate) fn enable_timer_interrupt() {
+    unsafe {
+        // enable supervisor timer interrupt
+        riscv::register::sie::set_stimer();
+    }
+    timer::set_next_trigger();
+}
+
 #[unsafe(no_mangle)]
 pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
     // see: https://docs.rs/riscv/latest/riscv/interrupt/enum.Trap.html#example
@@ -31,6 +41,11 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
     let raw_trap: Trap<usize, usize> = scause.cause();
     let standard_trap: Trap<Interrupt, Exception> = raw_trap.try_into().unwrap();
     match standard_trap {
+        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            trace!("[kernel] SupervisorTimer interrupt");
+            set_next_trigger();
+            suspend_current_and_run_next();
+        }
         Trap::Exception(Exception::UserEnvCall) => {
             cx.sepc += 4; // ecall has 4 bytes. sepc is the sret's return address 
             // x10: a0, x17: a7, x10: a0, x11: a1

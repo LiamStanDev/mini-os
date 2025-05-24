@@ -15,7 +15,8 @@ mod stack_trace;
 mod sync;
 mod syscall;
 mod task;
-pub(crate) mod trap;
+mod timer;
+mod trap;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
@@ -68,6 +69,7 @@ pub fn rust_main() -> ! {
     error!("[kernel] .bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
     trap::init();
     loader::load_apps();
+    trap::enable_timer_interrupt();
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }

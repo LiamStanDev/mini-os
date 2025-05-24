@@ -1,5 +1,7 @@
 use core::arch::asm;
 
+use log::trace;
+
 // Print kernel stack is unsafe
 pub unsafe fn print_stack_trace() {
     let mut fp: *const usize;
@@ -23,7 +25,7 @@ pub unsafe fn print_stack_trace() {
             saved_fp = *fp.sub(2);
         }
 
-        println!("0x{:016x}, fp = 0x{:016x}", saved_ra, saved_fp);
+        trace!("0x{:016x}, fp = 0x{:016x}", saved_ra, saved_fp);
         fp = saved_fp as *const usize;
     }
     println!("== End stack trace ==");

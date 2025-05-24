@@ -8,7 +8,7 @@ edition = "2024"
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 log = "0.4"
 riscv = "0.13.0"
-sbi-rt = { version = "0.0.2", features = ["legacy"] }
+sbi-rt = { version = "0.0.3", features = ["legacy"] }
 
 [profile.release]
 debug = true

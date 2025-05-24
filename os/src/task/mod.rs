@@ -2,10 +2,12 @@ use self::switch::__switch;
 use self::task::*;
 use crate::config::MAX_APP_NUM;
 use crate::loader::*;
+use crate::sbi::shutdown;
 use crate::sync::UPSafeCell;
 use crate::task::context::TaskContext;
 
 use lazy_static::*;
+use log::trace;
 
 mod context;
 mod switch;
@@ -20,12 +22,14 @@ impl TaskManager {
     fn mark_current_suspended(&self) {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
+        trace!("task {current} suspended");
         inner.tasks[current].task_status = TaskStatus::Ready;
     }
 
     fn mark_current_exited(&self) {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
+        trace!("task {current} exited");
         inner.tasks[current].task_status = TaskStatus::Exited;
     }
 
@@ -42,6 +46,7 @@ impl TaskManager {
         if let Some(next_app_id) = self.find_next_task() {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
+            trace!("task {current} start");
             inner.tasks[next_app_id].task_status = TaskStatus::Running;
             inner.current_task = next_app_id;
             let current_task_ctx_ptr = &mut inner.tasks[current].task_ctx as *mut TaskContext;
@@ -53,7 +58,8 @@ impl TaskManager {
                 __switch(current_task_ctx_ptr, next_task_ctx_ptr);
             }
         } else {
-            panic!("All application completed!");
+            trace!("All applications completed!");
+            shutdown(false);
         }
     }
 
