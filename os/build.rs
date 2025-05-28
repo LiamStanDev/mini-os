@@ -3,7 +3,7 @@ use std::io::{Result, Write};
 
 fn main() {
     println!("cargo:rerun-if-changed=../user/src/");
-    println!("cargo:rerun-if-changed={}", TARGET_PATH);
+    println!("cargo:rerun-if-changed={TARGET_PATH}");
     insert_app_data().unwrap();
 }
 
@@ -34,22 +34,22 @@ _num_app:
     )?;
 
     for i in 0..apps.len() {
-        writeln!(f, r#"    .quad app_{}_start"#, i)?;
+        writeln!(f, r#"    .quad app_{i}_start"#)?;
     }
     writeln!(f, r#"    .quad app_{}_end"#, apps.len() - 1)?;
 
     for (idx, app) in apps.iter().enumerate() {
-        println!("app_{}: {}", idx, app);
+        println!("app_{idx}: {app}");
         writeln!(
             f,
             r#"
     .section .data
-    .global app_{0}_start
-    .global app_{0}_end
-app_{0}_start:
-    .incbin "{2}{1}.bin"
-app_{0}_end:"#,
-            idx, app, TARGET_PATH
+    .global app_{idx}_start
+    .global app_{idx}_end
+    .align 3
+app_{idx}_start:
+    .incbin "{TARGET_PATH}{app}"
+app_{idx}_end:"#,
         )?;
     }
     Ok(())

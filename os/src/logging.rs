@@ -39,7 +39,7 @@ impl Log for SimpleLogger {
     fn flush(&self) {}
 }
 
-pub(crate) fn init() {
+pub fn init() {
     static LOGGER: SimpleLogger = SimpleLogger;
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(match option_env!("LOG") {
@@ -48,6 +48,6 @@ pub(crate) fn init() {
         Some("INFO") => LevelFilter::Info,
         Some("DEBUG") => LevelFilter::Debug,
         Some("TRACE") => LevelFilter::Trace,
-        _ => LevelFilter::Info,
+        _ => LevelFilter::Trace,
     });
 }

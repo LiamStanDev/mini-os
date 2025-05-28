@@ -14,7 +14,7 @@ impl Write for Stdout {
     }
 }
 
-pub(crate) fn print(args: fmt::Arguments) {
+pub fn print(args: fmt::Arguments) {
     Stdout.write_fmt(args).unwrap();
 }
 

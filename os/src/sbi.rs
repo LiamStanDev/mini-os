@@ -1,9 +1,9 @@
-pub(crate) fn console_putchar(c: usize) {
+pub fn console_putchar(c: usize) {
     #[allow(deprecated)]
     sbi_rt::legacy::console_putchar(c);
 }
 
-pub(crate) fn shutdown(failure: bool) -> ! {
+pub fn shutdown(failure: bool) -> ! {
     use sbi_rt::{NoReason, Shutdown, SystemFailure, system_reset};
 
     if !failure {
@@ -14,6 +14,6 @@ pub(crate) fn shutdown(failure: bool) -> ! {
     unreachable!();
 }
 
-pub(crate) fn set_timer(timer: u64) {
+pub fn set_timer(timer: u64) {
     sbi_rt::set_timer(timer);
 }

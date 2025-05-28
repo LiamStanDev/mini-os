@@ -14,7 +14,7 @@ build: binary
 
 .PHONY: elf
 elf: $(APPS)
-	@python3 build.py
+	@cargo build --release
 
 .PHONY: binary
 binary: elf

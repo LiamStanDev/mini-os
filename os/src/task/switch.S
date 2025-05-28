@@ -1,3 +1,20 @@
+# -----------------------------------------------------------------------------
+# switch.S - Task context switch routines for RISC-V
+#
+# This file implements the low-level context switch routine (__switch) for RISC-V.
+# It saves the current task's context (registers) to memory and restores the next
+# task's context from memory, enabling preemptive multitasking.
+#
+# - __switch: Saves the current task's context (ra, sp, s0-s11) to the current
+#   task's TaskContext structure, then loads the next task's context from its
+#   TaskContext structure and returns to the next task.
+#
+# TaskContext layout in memory (offsets in 8-byte words):
+#   0:  ra (return address)
+#   1:  sp (stack pointer)
+#   2-13: s0-s11 (callee-saved registers)
+# -----------------------------------------------------------------------------
+
 .altmacro
 .macro SAVE_SN n
   sd s\n, (\n+2)*8(a0)
@@ -5,8 +22,6 @@
 .macro LOAD_SN n
   ld s\n, (\n+2)*8(a1)
 .endm
-
-
 
   .section .text
   .globl __switch

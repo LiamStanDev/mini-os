@@ -1,7 +1,7 @@
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
 
-BASE_ADDRESS = 0x80400000;
+BASE_ADDRESS = 0x10000;
 
 SECTIONS
 {
@@ -14,23 +14,18 @@ SECTIONS
     . = ALIGN(4K);
     .rodata : {
         *(.rodata .rodata.*)
-        *(.srodata .srodata.*)
     }
 
     . = ALIGN(4K);
+    /* .data and .bss has same access permssion. therefore, we */
+    /* can use the same section for both. */
     .data : {
         *(.data .data.*)
-        *(.sdata .sdata.*)
     }
-
-
-    . = ALIGN(4K);
     .bss : {
-        start_bss = .;
         *(.bss .bss.*)
-        *(.sbss .sbss.*)
-        end_bss = .;
     }
+
     /DISCARD/ : {
         *(.eh_frame)
         *(.debug*)

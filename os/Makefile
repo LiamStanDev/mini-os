@@ -3,8 +3,6 @@ MODE := release
 KERNEL_ELF := target/$(TARGET)/$(MODE)/os
 KERNEL_BIN := $(KERNEL_ELF).bin
 DISASM_TMP := target/$(TARGET)/$(MODE)/asm
-FS_IMG := ../user/target/$(TARGET)/$(MODE)/fs.img
-APPS := ../user/src/bin/*
 
 # BOARD
 BOARD := qemu
@@ -29,6 +27,13 @@ DISASM ?= -x
 
 .PHONY: build
 build: $(KERNEL_BIN)
+
+.PHONY: env
+env:
+	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
+	cargo install cargo-binutils
+	rustup component add rust-src
+	rustup component add llvm-tools
 
 .PHONY: clean
 clean:

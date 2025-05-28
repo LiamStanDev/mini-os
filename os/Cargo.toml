@@ -5,10 +5,13 @@ authors = ["Liam Lin"]
 edition = "2024"
 
 [dependencies]
+bitflags = "2.9.1"
+buddy_system_allocator = "0.11.0"
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 log = "0.4"
 riscv = "0.13.0"
 sbi-rt = { version = "0.0.3", features = ["legacy"] }
+xmas-elf = "0.10.0"
 
 [profile.release]
 debug = true

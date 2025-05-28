@@ -1,19 +1,20 @@
-use self::switch::__switch;
-use self::task::*;
-use crate::config::MAX_APP_NUM;
-use crate::loader::*;
+use crate::loader;
 use crate::sbi::shutdown;
 use crate::sync::UPSafeCell;
 use crate::task::context::TaskContext;
-
+use crate::trap::context::TrapContext;
+use alloc::vec::Vec;
 use lazy_static::*;
 use log::trace;
+
+use self::switch::__switch;
+use self::task::{TaskControlBlock, TaskStatus};
 
 mod context;
 mod switch;
 mod task;
 
-pub(crate) struct TaskManager {
+pub struct TaskManager {
     num_app: usize,                      // unchange
     inner: UPSafeCell<TaskManagerInner>, // change when running
 }
@@ -70,7 +71,7 @@ impl TaskManager {
         let first_task_ctx_ptr = &task0.task_ctx as *const TaskContext;
         drop(inner);
 
-        let mut dummy = TaskContext::default();
+        let mut dummy = TaskContext::empty();
 
         unsafe {
             __switch(&mut dummy as *mut TaskContext, first_task_ctx_ptr);
@@ -78,27 +79,34 @@ impl TaskManager {
 
         panic!("unreachable in run_first_task!");
     }
+
+    fn get_current_satp(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].satp()
+    }
+
+    fn get_current_trap_ctx_mut(&self) -> &'static mut TrapContext {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].get_trap_ctx_mut()
+    }
 }
 
 struct TaskManagerInner {
-    tasks: [TaskControlBlock; MAX_APP_NUM],
+    tasks: Vec<TaskControlBlock>,
     current_task: usize,
 }
 
 lazy_static! {
-    static ref TASK_MANAGER: TaskManager = {
-        let num_app = get_num_app();
-
-        let mut tasks = [TaskControlBlock {
-            task_status: TaskStatus::UnInit,
-            task_ctx: TaskContext::default(),
-        }; MAX_APP_NUM];
-
-        for i in 0..num_app {
-            tasks[i].task_ctx = TaskContext::init(init_app_ctx(i));
-            tasks[i].task_status = TaskStatus::Ready;
+    pub static ref TASK_MANAGER: TaskManager = {
+        trace!("init TASK_MANAGER");
+        let num_app = loader::get_num_app();
+        trace!("num_app = {}", num_app);
+        let mut tasks: Vec<TaskControlBlock> = Vec::new();
+        for app_id in 0..num_app {
+            tasks.push(TaskControlBlock::new(app_id, loader::get_app_data(app_id)));
         }
-
         TaskManager {
             num_app,
             inner: unsafe {
@@ -111,16 +119,24 @@ lazy_static! {
     };
 }
 
-pub(crate) fn suspend_current_and_run_next() {
+pub fn suspend_current_and_run_next() {
     TASK_MANAGER.mark_current_suspended();
     TASK_MANAGER.run_next_task();
 }
 
-pub(crate) fn exit_current_and_run_next() {
+pub fn exit_current_and_run_next() {
     TASK_MANAGER.mark_current_exited();
     TASK_MANAGER.run_next_task();
 }
 
-pub(crate) fn run_first_task() {
+pub fn run_first_task() {
     TASK_MANAGER.run_first_task();
+}
+
+pub fn current_satp() -> usize {
+    TASK_MANAGER.get_current_satp()
+}
+
+pub fn current_trap_ctx_mut() -> &'static mut TrapContext {
+    TASK_MANAGER.get_current_trap_ctx_mut()
 }

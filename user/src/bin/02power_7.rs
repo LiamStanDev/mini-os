@@ -10,9 +10,9 @@ const LEN: usize = 100;
 fn main() -> i32 {
     let p = 7u64;
     let m = 998244353u64;
-    let iter: usize = 160000;
-    let mut s = [0u64; LEN];
+    let iter: usize = 240000;
     let mut cur = 0usize;
+    let mut s = [0u64; LEN];
     s[cur] = 1;
     for i in 1..=iter {
         let next = if cur + 1 == LEN { 0 } else { cur + 1 };

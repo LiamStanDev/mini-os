@@ -9,6 +9,6 @@ _start:
   .section .bss.stack
   .globl boot_stack_lower_bound
 boot_stack_lower_bound:
-  .space 4096 * 16 # 4KBi * 16 = 64KBi
+  .space 4096 * 16 # 4KBi * 16 = 64KiB
   .globl boot_stack_top
 boot_stack_top:
