@@ -1,25 +1,29 @@
-use log::*;
-
-use self::memory_set::KERNEL_SPACE;
+//! Memory management implementation
+//!
+//! SV39 page-based virtual-memory architecture for RV64 systems, and
+//! everything about memory management, like frame allocator, page table,
+//! map area and memory set, is implemented here.
+//!
+//! Every task or process has a memory_set to control its virtual memory.
 
 pub mod address;
 mod frame_allocator;
 mod heap_allocator;
-pub mod memory_set;
+mod memory_set;
 mod page_table;
 
+pub use memory_set::{KERNEL_SPACE, MapPermission, MemorySet};
+pub use page_table::PageTableEntry;
+
+use self::frame_allocator::frame_allocator_test;
+use self::heap_allocator::heap_test;
+use self::memory_set::activate_kernel;
+
+/// initiate heap allocator, frame allocator and kernel space
 pub fn init() {
-    // Initializes the heap allocator for dynamic memory allocation.
     heap_allocator::init_heap();
-    // heap_allocator::heap_test();
-
-    // Initializes the physical frame allocator for managing physical memory pages.
+    heap_test();
     frame_allocator::init_frame_allocator();
-    // frame_allocator::frame_allocator_test();
-
-    // Activates the kernel's page table and enables paging mode.
-    // memory_set::activate_kernel();
-
-    KERNEL_SPACE.exclusive_access().activate();
-    // memory_set::remap_kernel_test();
+    frame_allocator_test();
+    activate_kernel();
 }

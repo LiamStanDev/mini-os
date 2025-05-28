@@ -85,7 +85,7 @@ impl PageTable {
                 .expect("cannot translate page")
                 .ppn();
 
-            let page_start = vpn.get_addr0().bits;
+            let page_start = vpn.into();
             let page_end = page_start + PAGE_SIZE;
 
             #[rustfmt::skip]
@@ -136,11 +136,11 @@ impl PageTable {
     ///
     /// Returns `None` if any intermediate page table is missing or invalid.
     fn find_pte_mut(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
-        let idxs = vpn.get_sv39_indexes();
+        let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;
         for (i, &idx) in idxs.iter().enumerate() {
-            let pte = &mut ppn.get_pte_array_mut()[idx];
+            let pte = &mut ppn.get_pte_array()[idx];
             if i == 2 {
                 // last page table
                 result = Some(pte);
@@ -161,12 +161,12 @@ impl PageTable {
     ///
     /// If any intermediate page table is missing, it will be allocated and tracked.
     fn find_pte_create_mut(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
-        let idxs = vpn.get_sv39_indexes();
+        let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
         let mut result = None;
 
         for (i, &idx) in idxs.iter().enumerate() {
-            let pte = &mut ppn.get_pte_array_mut()[idx];
+            let pte = &mut ppn.get_pte_array()[idx];
             if i == 2 {
                 // last page table
                 result = Some(pte);
@@ -217,7 +217,7 @@ impl PageTableEntry {
     /// A new `PageTableEntry` with the specified physical page number and flags.
     fn new(ppn: PhysPageNum, flags: PTEFlags) -> Self {
         PageTableEntry {
-            bits: ppn.bits << 10 | flags.bits() as usize,
+            bits: ppn.0 << 10 | flags.bits() as usize,
         }
     }
 

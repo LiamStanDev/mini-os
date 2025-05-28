@@ -1,7 +1,7 @@
 use super::context::TaskContext;
 use crate::config::{self, TRAP_CONTEXT_ADDR};
 use crate::mm::address::{PhysPageNum, VirtAddr};
-use crate::mm::memory_set::{KERNEL_SPACE, MapPermission, MemorySet};
+use crate::mm::{KERNEL_SPACE, MapPermission, MemorySet};
 use crate::trap::context::TrapContext;
 use crate::trap::trap_handler;
 
@@ -57,14 +57,14 @@ impl TaskControlBlock {
             task_status: TaskStatus::Ready,
             memory_set,
             trap_ctx_ppn,
-            base_size: user_sp.bits, // from 0x0 to stack top
+            base_size: user_sp.into(), // from 0x0 to stack top
         };
 
         // Initialize TrapContext in user space
         let trap_ctx = tcb.get_trap_ctx_mut();
         *trap_ctx = TrapContext::init_ctx(
             entry_point,
-            user_sp.bits,
+            user_sp.into(),
             KERNEL_SPACE.exclusive_access().satp(),
             kstack_top,
             trap_handler as usize,

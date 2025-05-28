@@ -195,9 +195,9 @@ impl MemorySet {
             });
 
         // stack
-        let mut user_stack_bottom: VirtAddr = max_end_vpn.get_addr0();
-        user_stack_bottom.bits += PAGE_SIZE; // guard page
-        let user_stack_top: VirtAddr = (user_stack_bottom.bits + USER_STACK_SIZE).into();
+        let mut user_stack_bottom: VirtAddr = max_end_vpn.into();
+        user_stack_bottom.0 += PAGE_SIZE; // guard page
+        let user_stack_top: VirtAddr = (user_stack_bottom.0 + USER_STACK_SIZE).into();
         memory_set.push(
             MapArea::new(
                 user_stack_bottom,
@@ -230,7 +230,7 @@ impl MemorySet {
     pub fn satp(&self) -> usize {
         let mut satp = register::satp::read();
         satp.set_mode(register::satp::Mode::Sv39);
-        satp.set_ppn(self.page_table.root_ppn.bits);
+        satp.set_ppn(self.page_table.root_ppn.0);
 
         satp.bits()
     }
@@ -337,7 +337,7 @@ impl MapArea {
     /// * `vpn` - The virtual page number to map.
     fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let ppn: PhysPageNum = match self.map_type {
-            MapType::Identical => vpn.bits.into(),
+            MapType::Identical => vpn.0.into(),
             MapType::Framed => {
                 let frame = frame_alloc().expect("failed to alloc frame when using map_one");
                 let ppn = frame.ppn;
@@ -391,7 +391,7 @@ impl MapArea {
                 .translate(vpn)
                 .expect("failed to translate VPN to PTE")
                 .ppn()
-                .get_bytes_array_mut()[..src.len()];
+                .get_bytes_array()[..src.len()];
             dst.copy_from_slice(src);
         }
     }
@@ -435,7 +435,7 @@ impl Iterator for VPNRangeIterator {
             None
         } else {
             let cur = self.current;
-            self.current.bits += 1; // move VPN
+            self.current.0 += 1; // move VPN
             Some(cur)
         }
     }

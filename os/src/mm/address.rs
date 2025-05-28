@@ -1,209 +1,263 @@
-use super::page_table::PageTableEntry;
+//! Implementation of physical and virtual address and page number.
+
+use super::PageTableEntry;
 use crate::config::{PAGE_OFFSET_BITS, PAGE_SIZE};
 use core::fmt::{self, Debug, Formatter};
 
-/// Physical address width for SV39 (in bits)
+/// physical address
 const PA_WIDTH_SV39: usize = 56;
-/// Virtual address width for SV39 (in bits)
 const VA_WIDTH_SV39: usize = 39;
-/// Physical page number width for SV39 (in bits)
 const PPN_WIDTH_SV39: usize = PA_WIDTH_SV39 - PAGE_OFFSET_BITS;
-/// Virtual page number width for SV39 (in bits)
 const VPN_WIDTH_SV39: usize = VA_WIDTH_SV39 - PAGE_OFFSET_BITS;
 
-/// Represents a physical address.
-#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
-pub struct PhysAddr {
-    /// The address bits.
-    pub bits: usize,
-}
+/// Definitions
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub struct PhysAddr(pub usize);
 
-/// Represents a virtual address.
-#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
-pub struct VirtAddr {
-    /// The address bits.
-    pub bits: usize,
-}
+/// virtual address
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub struct VirtAddr(pub usize);
 
-/// Represents a physical page number.
-#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
-pub struct PhysPageNum {
-    /// The page number bits.
-    pub bits: usize,
-}
+/// physical page number
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub struct PhysPageNum(pub usize);
 
-/// Represents a virtual page number.
-#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
-pub struct VirtPageNum {
-    /// The page number bits.
-    pub bits: usize,
-}
+/// virtual page number
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub struct VirtPageNum(pub usize);
 
-impl PhysAddr {
-    pub fn page_offset(&self) -> usize {
-        self.bits & (PAGE_SIZE - 1)
-    }
-
-    /// Returns the physical page number containing this address (rounded down).
-    pub fn floor(&self) -> PhysPageNum {
-        PhysPageNum {
-            bits: self.bits / PAGE_SIZE,
-        }
-    }
-
-    /// Returns the physical page number containing this address (rounded up).
-    pub fn ceil(&self) -> PhysPageNum {
-        if (self.bits == 0) {
-            PhysPageNum { bits: 0 }
-        } else {
-            #[allow(clippy::manual_div_ceil)]
-            PhysPageNum {
-                bits: (self.bits + PAGE_SIZE - 1) / PAGE_SIZE,
-            }
-        }
-    }
-}
-
-impl PhysPageNum {
-    /// Returns the starting physical address of this page.
-    pub fn get_addr0(&self) -> PhysAddr {
-        PhysAddr {
-            bits: self.bits << PAGE_OFFSET_BITS,
-        }
-    }
-
-    /// Returns a mutable byte slice representing the page's memory.
-    pub fn get_bytes_array_mut(&self) -> &'static mut [u8] {
-        let pa: PhysAddr = self.get_addr0();
-        unsafe { core::slice::from_raw_parts_mut(pa.bits as *mut u8, PAGE_SIZE) }
-    }
-
-    /// Returns an immutable byte slice representing the page's memory.
-    pub fn get_bytes_array(&self) -> &'static [u8] {
-        let pa: PhysAddr = self.get_addr0();
-        unsafe { core::slice::from_raw_parts(pa.bits as *mut u8, PAGE_SIZE) }
-    }
-
-    /// Returns a mutable slice of page table entries for this page.
-    ///
-    /// # Safety
-    /// The page must be used as a page table.
-    pub fn get_pte_array_mut(&self) -> &'static mut [PageTableEntry] {
-        let pa: PhysAddr = self.get_addr0();
-        // PAGE_SIZE / sizeof(PageTableEntry) = 512; one page can store 512 PTEs.
-        unsafe { core::slice::from_raw_parts_mut(pa.bits as *mut PageTableEntry, PAGE_SIZE / 8) }
-    }
-
-    /// Returns a mutable reference to a value of type `T` at the start of this page.
-    ///
-    /// # Safety
-    /// The caller must ensure the type and alignment are correct.
-    pub fn get_mut<T>(&self) -> &'static mut T {
-        let pa: PhysAddr = (*self).get_addr0();
-        unsafe { (pa.bits as *mut T).as_mut().unwrap() }
-    }
-}
-
-impl VirtAddr {
-    /// Returns the offset within the page for this virtual address.
-    pub fn page_offset(&self) -> usize {
-        self.bits & (PAGE_SIZE - 1)
-    }
-
-    /// Returns the virtual page number containing this address (rounded down).
-    pub fn floor(&self) -> VirtPageNum {
-        VirtPageNum {
-            bits: self.bits / PAGE_SIZE,
-        }
-    }
-
-    /// Returns the virtual page number containing this address (rounded up).
-    pub fn ceil(&self) -> VirtPageNum {
-        VirtPageNum {
-            bits: (self.bits + PAGE_SIZE - 1) / PAGE_SIZE,
-        }
-    }
-}
-
-impl VirtPageNum {
-    /// Returns the starting virtual address of this page.
-    pub fn get_addr0(&self) -> VirtAddr {
-        VirtAddr {
-            bits: self.bits << PAGE_OFFSET_BITS,
-        }
-    }
-
-    /// Returns the SV39 page table indexes for this virtual page number.
-    ///
-    /// The result is an array of 3 indexes, one for each level of the page table.
-    pub fn get_sv39_indexes(&self) -> [usize; 3] {
-        const MASK: usize = 0b1_1111_1111;
-        [
-            (self.bits >> 0) & MASK,
-            (self.bits >> 9) & MASK,
-            (self.bits >> 18) & MASK,
-        ]
-    }
-}
+/// Debugging
 
 impl Debug for VirtAddr {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("VA:{:#x}", self.bits))
+        f.write_fmt(format_args!("VA:{:#x}", self.0))
     }
 }
 impl Debug for VirtPageNum {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("VPN:{:#x}", self.bits))
+        f.write_fmt(format_args!("VPN:{:#x}", self.0))
     }
 }
 impl Debug for PhysAddr {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("PA:{:#x}", self.bits))
+        f.write_fmt(format_args!("PA:{:#x}", self.0))
     }
 }
 impl Debug for PhysPageNum {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("PPN:{:#x}", self.bits))
+        f.write_fmt(format_args!("PPN:{:#x}", self.0))
     }
 }
 
-// from usize
+/// T: {PhysAddr, VirtAddr, PhysPageNum, VirtPageNum}
+/// T -> usize: T.0
+/// usize -> T: usize.into()
 
 impl From<usize> for PhysAddr {
-    /// Converts a `usize` to a `PhysAddr`, masking to the lower 56 bits.
     fn from(v: usize) -> Self {
-        Self {
-            // lower 56 bits
-            bits: v & ((1 << PA_WIDTH_SV39) - 1),
-        }
+        Self(v & ((1 << PA_WIDTH_SV39) - 1))
     }
 }
-
 impl From<usize> for PhysPageNum {
-    /// Converts a `usize` to a `PhysPageNum`, masking to the lower 44 bits.
     fn from(v: usize) -> Self {
-        Self {
-            // lower 44 bits
-            bits: v & ((1 << PPN_WIDTH_SV39) - 1),
-        }
+        Self(v & ((1 << PPN_WIDTH_SV39) - 1))
     }
 }
-
 impl From<usize> for VirtAddr {
-    /// Converts a `usize` to a `VirtAddr`, masking to the lower 39 bits.
     fn from(v: usize) -> Self {
-        Self {
-            // lower 39 bits
-            bits: v & ((1 << VA_WIDTH_SV39) - 1),
-        }
+        Self(v & ((1 << VA_WIDTH_SV39) - 1))
     }
 }
 impl From<usize> for VirtPageNum {
-    /// Converts a `usize` to a `VirtPageNum`, masking to the lower 27 bits.
     fn from(v: usize) -> Self {
-        Self {
-            // lower 27 bits
-            bits: v & ((1 << VPN_WIDTH_SV39) - 1),
+        Self(v & ((1 << VPN_WIDTH_SV39) - 1))
+    }
+}
+impl From<PhysAddr> for usize {
+    fn from(v: PhysAddr) -> Self {
+        v.0
+    }
+}
+impl From<PhysPageNum> for usize {
+    fn from(v: PhysPageNum) -> Self {
+        v.0
+    }
+}
+impl From<VirtAddr> for usize {
+    fn from(v: VirtAddr) -> Self {
+        if v.0 >= (1 << (VA_WIDTH_SV39 - 1)) {
+            v.0 | (!((1 << VA_WIDTH_SV39) - 1))
+        } else {
+            v.0
         }
     }
 }
+impl From<VirtPageNum> for usize {
+    fn from(v: VirtPageNum) -> Self {
+        v.0
+    }
+}
+
+impl VirtAddr {
+    pub fn floor(&self) -> VirtPageNum {
+        VirtPageNum(self.0 / PAGE_SIZE)
+    }
+    pub fn ceil(&self) -> VirtPageNum {
+        if self.0 == 0 {
+            VirtPageNum(0)
+        } else {
+            VirtPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE)
+        }
+    }
+    pub fn page_offset(&self) -> usize {
+        self.0 & (PAGE_SIZE - 1)
+    }
+    pub fn aligned(&self) -> bool {
+        self.page_offset() == 0
+    }
+}
+impl From<VirtAddr> for VirtPageNum {
+    fn from(v: VirtAddr) -> Self {
+        assert_eq!(v.page_offset(), 0);
+        v.floor()
+    }
+}
+impl From<VirtPageNum> for VirtAddr {
+    fn from(v: VirtPageNum) -> Self {
+        Self(v.0 << PAGE_OFFSET_BITS)
+    }
+}
+impl PhysAddr {
+    pub fn floor(&self) -> PhysPageNum {
+        PhysPageNum(self.0 / PAGE_SIZE)
+    }
+    pub fn ceil(&self) -> PhysPageNum {
+        if self.0 == 0 {
+            PhysPageNum(0)
+        } else {
+            PhysPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE)
+        }
+    }
+    pub fn page_offset(&self) -> usize {
+        self.0 & (PAGE_SIZE - 1)
+    }
+    pub fn aligned(&self) -> bool {
+        self.page_offset() == 0
+    }
+}
+impl From<PhysAddr> for PhysPageNum {
+    fn from(v: PhysAddr) -> Self {
+        assert_eq!(v.page_offset(), 0);
+        v.floor()
+    }
+}
+impl From<PhysPageNum> for PhysAddr {
+    fn from(v: PhysPageNum) -> Self {
+        Self(v.0 << PAGE_OFFSET_BITS)
+    }
+}
+
+impl VirtPageNum {
+    pub fn indexes(&self) -> [usize; 3] {
+        let mut vpn = self.0;
+        let mut idx = [0usize; 3];
+        for i in (0..3).rev() {
+            idx[i] = vpn & 511;
+            vpn >>= 9;
+        }
+        idx
+    }
+}
+
+impl PhysPageNum {
+    pub fn get_pte_array(&self) -> &'static mut [PageTableEntry] {
+        let pa: PhysAddr = (*self).into();
+        unsafe { core::slice::from_raw_parts_mut(pa.0 as *mut PageTableEntry, 512) }
+    }
+    pub fn get_bytes_array(&self) -> &'static mut [u8] {
+        let pa: PhysAddr = (*self).into();
+        unsafe { core::slice::from_raw_parts_mut(pa.0 as *mut u8, 4096) }
+    }
+    pub fn get_mut<T>(&self) -> &'static mut T {
+        let pa: PhysAddr = (*self).into();
+        unsafe { (pa.0 as *mut T).as_mut().unwrap() }
+    }
+}
+
+pub trait StepByOne {
+    fn step(&mut self);
+}
+impl StepByOne for VirtPageNum {
+    fn step(&mut self) {
+        self.0 += 1;
+    }
+}
+
+#[derive(Copy, Clone)]
+/// a simple range structure for type T
+pub struct SimpleRange<T>
+where
+    T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
+{
+    l: T,
+    r: T,
+}
+impl<T> SimpleRange<T>
+where
+    T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
+{
+    pub fn new(start: T, end: T) -> Self {
+        assert!(start <= end, "start {:?} > end {:?}!", start, end);
+        Self { l: start, r: end }
+    }
+    pub fn get_start(&self) -> T {
+        self.l
+    }
+    pub fn get_end(&self) -> T {
+        self.r
+    }
+}
+impl<T> IntoIterator for SimpleRange<T>
+where
+    T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
+{
+    type Item = T;
+    type IntoIter = SimpleRangeIterator<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        SimpleRangeIterator::new(self.l, self.r)
+    }
+}
+/// iterator for the simple range structure
+pub struct SimpleRangeIterator<T>
+where
+    T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
+{
+    current: T,
+    end: T,
+}
+impl<T> SimpleRangeIterator<T>
+where
+    T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
+{
+    pub fn new(l: T, r: T) -> Self {
+        Self { current: l, end: r }
+    }
+}
+impl<T> Iterator for SimpleRangeIterator<T>
+where
+    T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current == self.end {
+            None
+        } else {
+            let t = self.current;
+            self.current.step();
+            Some(t)
+        }
+    }
+}
+
+/// a simple range structure for virtual page number
+pub type VPNRange = SimpleRange<VirtPageNum>;
