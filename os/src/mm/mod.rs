@@ -17,13 +17,14 @@ pub use page_table::PageTableEntry;
 
 use self::frame_allocator::frame_allocator_test;
 use self::heap_allocator::heap_test;
-use self::memory_set::activate_kernel;
+use self::memory_set::{activate_kernel, remap_kernel_test};
 
 /// initiate heap allocator, frame allocator and kernel space
 pub fn init() {
     heap_allocator::init_heap();
-    heap_test();
+    // heap_test();
     frame_allocator::init_frame_allocator();
-    frame_allocator_test();
+    // frame_allocator_test();
     activate_kernel();
+    // remap_kernel_test();
 }

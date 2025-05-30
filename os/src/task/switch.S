@@ -49,6 +49,3 @@ __switch:
    .set n, n+1
  .endr
  ret
-
-
-

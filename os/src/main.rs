@@ -56,8 +56,8 @@ pub fn rust_main() -> ! {
     info!("[kernel] Hello, world!");
     mm::init();
     info!("[kernel] back to world!");
-    // trap::init();
+    trap::init();
     // trap::enable_timer_interrupt();
-    // task::run_first_task();
+    task::run_first_task();
     panic!("Unreachable in rust_main!");
 }

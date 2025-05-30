@@ -13,5 +13,8 @@ unsafe extern "C" {
     ///
     /// # Safety
     /// This function is unsafe because it performs raw pointer dereferencing and low-level context switching.
-    pub fn __switch(current_task_ctx_ptr: *mut TaskContext, next_task_ctx_ptr: *const TaskContext);
+    pub unsafe fn __switch(
+        current_task_ctx_ptr: *mut TaskContext,
+        next_task_ctx_ptr: *const TaskContext,
+    );
 }

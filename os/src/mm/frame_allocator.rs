@@ -58,7 +58,7 @@ impl FrameTracker {
     ///
     /// The frame's memory is zeroed on allocation.
     pub fn new(ppn: PhysPageNum) -> Self {
-        let bytes_array = ppn.get_bytes_array();
+        let bytes_array = ppn.get_bytes_array_mut();
         bytes_array.fill(0);
         Self { ppn }
     }

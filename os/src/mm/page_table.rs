@@ -85,7 +85,7 @@ impl PageTable {
                 .expect("cannot translate page")
                 .ppn();
 
-            let page_start = vpn.into();
+            let page_start = vpn.bits();
             let page_end = page_start + PAGE_SIZE;
 
             #[rustfmt::skip]
@@ -93,7 +93,7 @@ impl PageTable {
             #[rustfmt::skip]
             let slice_end = if end_addr < page_end { end_addr - page_start } else { PAGE_SIZE };
 
-            res.push(&ppn.get_bytes_array()[slice_start..slice_end]);
+            res.push(&ppn.get_bytes_array_mut()[slice_start..slice_end]);
             current = page_start + slice_end;
         }
 
@@ -140,7 +140,7 @@ impl PageTable {
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;
         for (i, &idx) in idxs.iter().enumerate() {
-            let pte = &mut ppn.get_pte_array()[idx];
+            let pte = &mut ppn.get_pte_array_mut()[idx];
             if i == 2 {
                 // last page table
                 result = Some(pte);
@@ -166,7 +166,7 @@ impl PageTable {
         let mut result = None;
 
         for (i, &idx) in idxs.iter().enumerate() {
-            let pte = &mut ppn.get_pte_array()[idx];
+            let pte = &mut ppn.get_pte_array_mut()[idx];
             if i == 2 {
                 // last page table
                 result = Some(pte);

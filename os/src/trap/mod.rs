@@ -45,15 +45,15 @@ fn set_kernel_trap_entry() {
 fn set_user_trap_entry() {
     let mut stvec = register::stvec::read();
     stvec.set_trap_mode(TrapMode::Direct);
-    stvec.set_address(TRAMPOLINE_ADDR as usize);
+    stvec.set_address(TRAMPOLINE_ADDR);
     unsafe {
         register::stvec::write(stvec);
     }
 }
 
+/// enable supervisor timer interrupt
 pub fn enable_timer_interrupt() {
     unsafe {
-        // enable supervisor timer interrupt
         riscv::register::sie::set_stimer();
     }
     timer::set_next_trigger();
@@ -120,16 +120,18 @@ pub fn trap_return() -> ! {
         fn __restore();
     }
 
-    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE_ADDR;
+    let restore_va = (__restore as usize - __alltraps as usize) + TRAMPOLINE_ADDR;
+    trace!("alltrap_va = {:#x}", TRAMPOLINE_ADDR);
+    trace!("restore_va = {:#x}", restore_va);
+
     unsafe {
         asm!(
             "fence.i", // prevent wrong i-cache
             "jr {restore_va}",
             restore_va = in(reg) restore_va,
             in("a0") trap_ctx_ptr,
-            in("a1") user_satp
+            in("a1") user_satp,
+            options(noreturn)
         );
     }
-
-    panic!("Unreachable in back_to_user!");
 }

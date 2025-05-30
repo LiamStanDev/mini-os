@@ -1,3 +1,5 @@
+use log::trace;
+
 use crate::trap::trap_return;
 
 #[repr(C)]
@@ -36,6 +38,8 @@ impl TaskContext {
     /// # Returns
     /// A `TaskContext` set up to return from a trap handler.
     pub fn goto_trap_return(kstack_ptr: usize) -> Self {
+        // add trace log
+
         Self {
             ra: trap_return as usize,
             sp: kstack_ptr,

@@ -1,3 +1,5 @@
+use log::trace;
+
 use super::context::TaskContext;
 use crate::config::{self, TRAP_CONTEXT_ADDR};
 use crate::mm::address::{PhysPageNum, VirtAddr};
@@ -18,6 +20,7 @@ pub struct TaskControlBlock {
     pub task_status: TaskStatus,
     pub memory_set: MemorySet,
     pub trap_ctx_ppn: PhysPageNum,
+    #[allow(unused)]
     pub base_size: usize,
 }
 
@@ -37,6 +40,7 @@ impl TaskControlBlock {
     pub fn new(app_id: usize, elf_data: &[u8]) -> Self {
         // Allocate kernel stack for the app
         let (kstack_bottom, kstack_top) = config::kernel_stack_pos(app_id);
+
         KERNEL_SPACE.exclusive_access().insert_framed_area(
             kstack_bottom.into(),
             kstack_top.into(),
@@ -45,29 +49,39 @@ impl TaskControlBlock {
 
         // Load ELF and set up user address space
         let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+
         let trap_ctx_ppn = memory_set
-            .page_table
             .translate(VirtAddr::from(TRAP_CONTEXT_ADDR).floor())
             .expect("Failed to translate TRAP_CONTEXT_ADDR")
             .ppn();
 
-        // Construct TaskControlBlock
+        // Init TaskControlBlock
         let tcb = TaskControlBlock {
             task_ctx: TaskContext::goto_trap_return(kstack_top),
             task_status: TaskStatus::Ready,
             memory_set,
             trap_ctx_ppn,
-            base_size: user_sp.into(), // from 0x0 to stack top
+            base_size: user_sp.bits(), // from 0x0 to stack top
         };
 
         // Initialize TrapContext in user space
         let trap_ctx = tcb.get_trap_ctx_mut();
         *trap_ctx = TrapContext::init_ctx(
             entry_point,
-            user_sp.into(),
+            user_sp.bits(),
             KERNEL_SPACE.exclusive_access().satp(),
             kstack_top,
             trap_handler as usize,
+        );
+
+        trace!(
+            "app_id = {}, kstack: [{:#x}, {:#x}], elf_data len = {}. entry = {:#x}, user_sp = {:#x}",
+            app_id,
+            kstack_bottom,
+            kstack_top,
+            elf_data.len(),
+            entry_point,
+            user_sp.bits()
         );
 
         tcb
@@ -92,6 +106,7 @@ impl TaskControlBlock {
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum TaskStatus {
+    #[allow(unused)]
     UnInit,
     Ready,
     Running,
