@@ -34,9 +34,9 @@ impl PageTable {
     /// Construct a page table from an existing SATP value (root physical page number).
     ///
     /// This does not take ownership of any frames and is typically used for temporary access.
-    pub fn from_satp(satp: usize) -> Self {
+    pub fn from_token(token: usize) -> Self {
         Self {
-            root_ppn: satp.into(),
+            root_ppn: token.into(),
             frames: vec![],
         }
     }
@@ -71,7 +71,7 @@ impl PageTable {
     /// # Panics
     /// Panics if any part of the virtual address range cannot be translated.
     pub fn translated_byte_buffer(satp: usize, ptr: *const u8, len: usize) -> Vec<&'static [u8]> {
-        let page_table = PageTable::from_satp(satp); // get non-owned PageTable from satp
+        let page_table = PageTable::from_token(satp); // get non-owned PageTable from satp
         let start_addr = ptr as usize;
         let end_addr = start_addr + len;
         let mut res = Vec::new();
@@ -85,7 +85,7 @@ impl PageTable {
                 .expect("cannot translate page")
                 .ppn();
 
-            let page_start = vpn.into();
+            let page_start = vpn.bits();
             let page_end = page_start + PAGE_SIZE;
 
             #[rustfmt::skip]
@@ -93,7 +93,7 @@ impl PageTable {
             #[rustfmt::skip]
             let slice_end = if end_addr < page_end { end_addr - page_start } else { PAGE_SIZE };
 
-            res.push(&ppn.get_bytes_array()[slice_start..slice_end]);
+            res.push(&ppn.get_bytes_array_mut()[slice_start..slice_end]);
             current = page_start + slice_end;
         }
 
@@ -140,7 +140,7 @@ impl PageTable {
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;
         for (i, &idx) in idxs.iter().enumerate() {
-            let pte = &mut ppn.get_pte_array()[idx];
+            let pte = &mut ppn.get_pte_array_mut()[idx];
             if i == 2 {
                 // last page table
                 result = Some(pte);
@@ -166,7 +166,7 @@ impl PageTable {
         let mut result = None;
 
         for (i, &idx) in idxs.iter().enumerate() {
-            let pte = &mut ppn.get_pte_array()[idx];
+            let pte = &mut ppn.get_pte_array_mut()[idx];
             if i == 2 {
                 // last page table
                 result = Some(pte);
@@ -280,4 +280,26 @@ bitflags! {
         /// Dirty
         const D = 1 << 7;
     }
+}
+
+pub fn translated_byte_buffer(satp: usize, ptr: *const u8, len: usize) -> Vec<&'static mut [u8]> {
+    let page_table = PageTable::from_token(satp);
+    let mut start = ptr as usize;
+    let end = start + len;
+    let mut v = Vec::new();
+    while start < end {
+        let start_va = VirtAddr::from(start);
+        let mut vpn = start_va.floor();
+        let ppn = page_table.translate(vpn).unwrap().ppn();
+        vpn.add(1);
+        let mut end_va: VirtAddr = vpn.get_first_addr();
+        end_va = end_va.min(VirtAddr::from(end));
+        if end_va.page_offset() == 0 {
+            v.push(&mut ppn.get_bytes_array_mut()[start_va.page_offset()..]);
+        } else {
+            v.push(&mut ppn.get_bytes_array_mut()[start_va.page_offset()..end_va.page_offset()]);
+        }
+        start = end_va.bits();
+    }
+    v
 }

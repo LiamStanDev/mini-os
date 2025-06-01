@@ -1,9 +1,7 @@
-use super::context::TaskContext;
-use crate::config::{self, TRAP_CONTEXT_ADDR};
-use crate::mm::address::{PhysPageNum, VirtAddr};
-use crate::mm::{KERNEL_SPACE, MapPermission, MemorySet};
-use crate::trap::context::TrapContext;
-use crate::trap::trap_handler;
+use super::TaskContext;
+use crate::config::{TRAP_CONTEXT_ADDR, kernel_stack_pos};
+use crate::mm::{KERNEL_SPACE, MapPermission, MemorySet, PhysPageNum, VirtAddr};
+use crate::trap::{TrapContext, trap_handler};
 
 /// The TaskControlBlock holds all information needed to manage and schedule a task.
 ///
@@ -14,10 +12,10 @@ use crate::trap::trap_handler;
 /// - `trap_ctx_ppn`: The physical page number of the trap context for this task.
 /// - `base_size`: The size of the application from address 0x0 to the top of the user stack.
 pub struct TaskControlBlock {
-    pub task_ctx: TaskContext,
     pub task_status: TaskStatus,
+    pub task_cx: TaskContext,
     pub memory_set: MemorySet,
-    pub trap_ctx_ppn: PhysPageNum,
+    pub trap_cx_ppn: PhysPageNum,
     pub base_size: usize,
 }
 
@@ -35,64 +33,58 @@ impl TaskControlBlock {
     /// # Returns
     /// A fully initialized `TaskControlBlock` ready to be scheduled.
     pub fn new(app_id: usize, elf_data: &[u8]) -> Self {
-        // Allocate kernel stack for the app
-        let (kstack_bottom, kstack_top) = config::kernel_stack_pos(app_id);
+        // memory_set with elf program headers/trampoline/trap context/user stack
+        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+        let trap_cx_ppn = memory_set
+            .translate(VirtAddr::from(TRAP_CONTEXT_ADDR).floor())
+            .unwrap()
+            .ppn();
+        let task_status = TaskStatus::Ready;
+
+        let (kernel_stack_bottom, kernel_stack_top) = kernel_stack_pos(app_id);
         KERNEL_SPACE.exclusive_access().insert_framed_area(
-            kstack_bottom.into(),
-            kstack_top.into(),
+            kernel_stack_bottom.into(),
+            kernel_stack_top.into(),
             MapPermission::R | MapPermission::W,
         );
-
-        // Load ELF and set up user address space
-        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
-        let trap_ctx_ppn = memory_set
-            .page_table
-            .translate(VirtAddr::from(TRAP_CONTEXT_ADDR).floor())
-            .expect("Failed to translate TRAP_CONTEXT_ADDR")
-            .ppn();
-
-        // Construct TaskControlBlock
-        let tcb = TaskControlBlock {
-            task_ctx: TaskContext::goto_trap_return(kstack_top),
-            task_status: TaskStatus::Ready,
+        let task_control_block = Self {
+            task_status,
+            task_cx: TaskContext::goto_trap_return(kernel_stack_top),
             memory_set,
-            trap_ctx_ppn,
-            base_size: user_sp.into(), // from 0x0 to stack top
+            trap_cx_ppn,
+            base_size: user_sp.bits(),
         };
 
-        // Initialize TrapContext in user space
-        let trap_ctx = tcb.get_trap_ctx_mut();
-        *trap_ctx = TrapContext::init_ctx(
+        let trap_cx = task_control_block.get_trap_cx();
+        *trap_cx = TrapContext::init_context(
             entry_point,
-            user_sp.into(),
-            KERNEL_SPACE.exclusive_access().satp(),
-            kstack_top,
+            user_sp.bits(),
+            KERNEL_SPACE.exclusive_access().token(),
+            kernel_stack_top,
             trap_handler as usize,
         );
-
-        tcb
-    }
-
-    /// Returns the SATP value for this task's address space.
-    ///
-    /// This value encodes the page table root and mode for address translation,
-    /// and is used to activate the task's memory mapping.
-    pub fn satp(&self) -> usize {
-        self.memory_set.satp()
+        task_control_block
     }
 
     /// Returns a mutable reference to the trap context for this task.
     ///
     /// The trap context holds the processor state to be restored when returning
     /// from a trap (interrupt, exception, or syscall).
-    pub fn get_trap_ctx_mut(&self) -> &'static mut TrapContext {
-        self.trap_ctx_ppn.get_mut()
+    pub fn get_trap_cx(&self) -> &'static mut TrapContext {
+        self.trap_cx_ppn.get_mut()
+    }
+
+    /// Returns the SATP value for this task's address space.
+    ///
+    /// This value encodes the page table root and mode for address translation,
+    /// and is used to activate the task's memory mapping.
+    pub fn get_user_token(&self) -> usize {
+        self.memory_set.token()
     }
 }
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum TaskStatus {
-    UnInit,
     Ready,
     Running,
     Exited,

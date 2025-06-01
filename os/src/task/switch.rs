@@ -1,8 +1,5 @@
-use core::arch::global_asm;
-
-use super::context::TaskContext;
-
-global_asm!(include_str!("switch.S"));
+core::arch::global_asm!(include_str!("switch.S"));
+use super::TaskContext;
 
 unsafe extern "C" {
     /// Externally defined low-level context switch routine for tasks.
@@ -13,5 +10,8 @@ unsafe extern "C" {
     ///
     /// # Safety
     /// This function is unsafe because it performs raw pointer dereferencing and low-level context switching.
-    pub fn __switch(current_task_ctx_ptr: *mut TaskContext, next_task_ctx_ptr: *const TaskContext);
+    pub unsafe fn __switch(
+        current_task_cx_ptr: *mut TaskContext,
+        next_task_cx_ptr: *const TaskContext,
+    );
 }

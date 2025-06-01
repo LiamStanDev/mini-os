@@ -15,6 +15,6 @@ pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
         SYSCALL_EXIT => sys_exit(args[0] as i32),
         SYSCALL_YIELD => sys_yield(),
         SYSCALL_GET_TIME => sys_get_time(),
-        _ => panic!("Unsupported syscall: {}", syscall_id),
+        _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
 }

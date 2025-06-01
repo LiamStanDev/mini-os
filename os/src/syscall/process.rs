@@ -1,17 +1,14 @@
-use log::*;
-
-use crate::task::*;
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next};
 use crate::timer::get_time_ms;
+use log::trace;
 
 pub fn sys_exit(exit_code: i32) -> ! {
     trace!("[kernel] Application exited with code {}", exit_code);
-
     exit_current_and_run_next();
-    panic!("unreachable in sys_exit");
+    panic!("Unreachable in sys_exit!");
 }
 
 pub fn sys_yield() -> isize {
-    trace!("[kernel] Application yield");
     suspend_current_and_run_next();
     0
 }

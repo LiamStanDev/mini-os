@@ -14,19 +14,25 @@ use riscv::register::sstatus::{self, SPP, Sstatus};
 /// - `kernel_sp`: The kernel stack pointer for trap handling
 /// - `trap_handler`: The address of the kernel's trap handler function
 pub struct TrapContext {
+    /// general regs[0..31]
     pub x: [usize; 32],
+    /// CSR sstatus
     pub sstatus: Sstatus,
+    /// CSR sepc
     pub sepc: usize,
+    /// Addr of Page Table
     pub kernel_satp: usize,
+    /// kernel stack
     pub kernel_sp: usize,
+    /// Addr of trap_handler function
     pub trap_handler: usize,
 }
 
 impl TrapContext {
+    /// set stack pointer to x_2 reg (sp)
     pub fn set_sp(&mut self, sp: usize) {
         self.x[2] = sp;
     }
-
     /// Initialize a new trap context for entering user mode.
     ///
     /// This function sets up a `TrapContext` with the specified entry point, user stack pointer,
@@ -42,24 +48,24 @@ impl TrapContext {
     ///
     /// # Returns
     /// A fully initialized `TrapContext` ready for user mode execution.
-    pub fn init_ctx(
+    pub fn init_context(
         entry: usize,
         sp: usize,
         kernel_satp: usize,
         kernel_sp: usize,
         trap_handler: usize,
     ) -> Self {
-        let mut sstatus = sstatus::read();
-        sstatus.set_spp(SPP::User);
-        let mut ctx = Self {
+        let mut sstatus = sstatus::read(); // CSR sstatus
+        sstatus.set_spp(SPP::User); //previous privilege mode: user mode
+        let mut cx = Self {
             x: [0; 32],
             sstatus,
-            sepc: entry,
-            kernel_satp,
-            kernel_sp,
-            trap_handler,
+            sepc: entry,  // entry point of app
+            kernel_satp,  // addr of page table
+            kernel_sp,    // kernel stack
+            trap_handler, // addr of trap_handler function
         };
-        ctx.set_sp(sp);
-        ctx
+        cx.set_sp(sp); // app's user stack pointer
+        cx // return initial Trap Context of app
     }
 }

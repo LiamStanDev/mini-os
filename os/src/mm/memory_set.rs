@@ -1,3 +1,4 @@
+use super::PageTableEntry;
 use super::address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 use super::frame_allocator::{FrameTracker, frame_alloc};
 use super::page_table::{PTEFlags, PageTable};
@@ -61,6 +62,10 @@ impl MemorySet {
         }
 
         self.areas.push(map_area);
+    }
+
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        self.page_table.translate(vpn)
     }
 
     /// Insert a new framed memory area into the address space.
@@ -195,7 +200,7 @@ impl MemorySet {
             });
 
         // stack
-        let mut user_stack_bottom: VirtAddr = max_end_vpn.into();
+        let mut user_stack_bottom: VirtAddr = max_end_vpn.get_first_addr();
         user_stack_bottom.0 += PAGE_SIZE; // guard page
         let user_stack_top: VirtAddr = (user_stack_bottom.0 + USER_STACK_SIZE).into();
         memory_set.push(
@@ -211,8 +216,8 @@ impl MemorySet {
         // map TrapContext
         memory_set.push(
             MapArea::new(
-                TRAP_CONTEXT_ADDR.into(),
-                TRAMPOLINE_ADDR.into(),
+                VirtAddr::from(TRAP_CONTEXT_ADDR),
+                VirtAddr::from(TRAMPOLINE_ADDR),
                 MapType::Framed,
                 MapPermission::R | MapPermission::W,
             ),
@@ -227,7 +232,7 @@ impl MemorySet {
     }
 
     /// returns the value that should be written to the RISC-V satp
-    pub fn satp(&self) -> usize {
+    pub fn token(&self) -> usize {
         let mut satp = register::satp::read();
         satp.set_mode(register::satp::Mode::Sv39);
         satp.set_ppn(self.page_table.root_ppn.0);
@@ -240,7 +245,7 @@ impl MemorySet {
     /// This function sets the SATP register to the root page table of this `MemorySet`
     /// and flushes the TLB to ensure address translation uses the new mappings.
     pub fn activate(&self) {
-        let satp = Satp::from_bits(self.satp());
+        let satp = Satp::from_bits(self.token());
 
         unsafe {
             register::satp::write(satp);
@@ -255,11 +260,10 @@ impl MemorySet {
     /// of the trampoline code(specified in linker) with read and execute permissions.
     /// The trampoline is used for context switching and trap handling.
     fn map_trampoline(&mut self) {
-        self.page_table.map(
-            VirtAddr::from(TRAMPOLINE_ADDR).floor(),
-            PhysAddr::from(strampoline as usize).floor(),
-            PTEFlags::R | PTEFlags::X,
-        )
+        let vpn = VirtAddr::from(TRAMPOLINE_ADDR).floor();
+        let ppn = PhysAddr::from(strampoline as usize).floor();
+        trace!("mapping trampoline: {vpn:#?} -> {ppn:#?}");
+        self.page_table.map(vpn, ppn, PTEFlags::R | PTEFlags::X);
     }
 }
 
@@ -391,7 +395,7 @@ impl MapArea {
                 .translate(vpn)
                 .expect("failed to translate VPN to PTE")
                 .ppn()
-                .get_bytes_array()[..src.len()];
+                .get_bytes_array_mut()[..src.len()];
             dst.copy_from_slice(src);
         }
     }

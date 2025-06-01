@@ -1,14 +1,20 @@
+mod context;
+
 use crate::config::{TRAMPOLINE_ADDR, TRAP_CONTEXT_ADDR};
 use crate::syscall::syscall;
-use crate::task::{current_satp, current_trap_ctx_mut, suspend_current_and_run_next};
+use crate::task::{
+    current_trap_cx, current_user_token, exit_current_and_run_next, suspend_current_and_run_next,
+};
 use crate::timer::{self, set_next_trigger};
 use core::arch::{asm, global_asm};
-use log::trace;
-use riscv::interrupt::{Exception, Interrupt, Trap};
+use log::info;
+use riscv::interrupt::{Exception, Interrupt};
 use riscv::register;
-use riscv::register::stvec::TrapMode;
-
-pub mod context;
+use riscv::register::{
+    mtvec::TrapMode,
+    scause::{self, Trap},
+    stval,
+};
 
 global_asm!(include_str!("trap.S"));
 
@@ -45,18 +51,88 @@ fn set_kernel_trap_entry() {
 fn set_user_trap_entry() {
     let mut stvec = register::stvec::read();
     stvec.set_trap_mode(TrapMode::Direct);
-    stvec.set_address(TRAMPOLINE_ADDR as usize);
+    stvec.set_address(TRAMPOLINE_ADDR);
     unsafe {
         register::stvec::write(stvec);
     }
 }
 
+/// enable timer interrupt in sie CSR
 pub fn enable_timer_interrupt() {
     unsafe {
-        // enable supervisor timer interrupt
         riscv::register::sie::set_stimer();
     }
+
     timer::set_next_trigger();
+}
+
+#[unsafe(no_mangle)]
+/// handle an interrupt, exception, or system call from user space
+pub fn trap_handler() -> ! {
+    set_kernel_trap_entry();
+    let cx = current_trap_cx();
+    let scause = register::scause::read();
+    let stval = stval::read();
+
+    let raw_trap: Trap<usize, usize> = scause.cause();
+    let standard_trap: Trap<Interrupt, Exception> = raw_trap.try_into().unwrap();
+    match standard_trap {
+        Trap::Exception(Exception::UserEnvCall) => {
+            cx.sepc += 4;
+            cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+        }
+        Trap::Exception(Exception::StoreFault)
+        | Trap::Exception(Exception::StorePageFault)
+        | Trap::Exception(Exception::LoadFault)
+        | Trap::Exception(Exception::LoadPageFault) => {
+            info!(
+                "[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.",
+                stval, cx.sepc
+            );
+            exit_current_and_run_next();
+        }
+        Trap::Exception(Exception::IllegalInstruction) => {
+            info!("[kernel] IllegalInstruction in application, kernel killed it.");
+            exit_current_and_run_next();
+        }
+        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            set_next_trigger();
+            suspend_current_and_run_next();
+        }
+        _ => {
+            panic!(
+                "Unsupported trap {:?}, stval = {:#x}!",
+                scause.cause(),
+                stval
+            );
+        }
+    }
+    trap_return();
+}
+
+#[unsafe(no_mangle)]
+/// set the new addr of __restore asm function in TRAMPOLINE page,
+/// set the reg a0 = trap_cx_ptr, reg a1 = phy addr of usr page table,
+/// finally, jump to new addr of __restore asm function
+pub fn trap_return() -> ! {
+    set_user_trap_entry();
+    let trap_cx_ptr = TRAP_CONTEXT_ADDR;
+    let user_satp = current_user_token();
+    unsafe extern "C" {
+        fn __alltraps();
+        fn __restore();
+    }
+    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE_ADDR;
+    unsafe {
+        asm!(
+            "fence.i",
+            "jr {restore_va}",             // jump to new addr of __restore asm function
+            restore_va = in(reg) restore_va,
+            in("a0") trap_cx_ptr,      // a0 = virt addr of Trap Context
+            in("a1") user_satp,        // a1 = phy addr of usr page table
+            options(noreturn)
+        );
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -64,72 +140,4 @@ pub fn trap_from_kernel() -> ! {
     panic!("a trap from kernel!");
 }
 
-#[unsafe(no_mangle)]
-pub fn trap_handler() -> ! {
-    set_kernel_trap_entry();
-    let ctx = current_trap_ctx_mut();
-    // see: https://docs.rs/riscv/latest/riscv/interrupt/enum.Trap.html#example
-    let scause = register::scause::read();
-    let raw_trap: Trap<usize, usize> = scause.cause();
-    let standard_trap: Trap<Interrupt, Exception> = raw_trap.try_into().unwrap();
-    match standard_trap {
-        Trap::Interrupt(Interrupt::SupervisorTimer) => {
-            trace!("[kernel] SupervisorTimer interrupt");
-            set_next_trigger();
-            suspend_current_and_run_next();
-        }
-        Trap::Exception(Exception::UserEnvCall) => {
-            ctx.sepc += 4; // ecall has 4 bytes. sepc is the sret's return address 
-            // x10: a0, x17: a7, x10: a0, x11: a1
-            ctx.x[10] = syscall(ctx.x[17], [ctx.x[10], ctx.x[11], ctx.x[12]]) as usize
-        }
-        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::LoadFault) => {
-            trace!("[kernel] PageFault in application, kernel killed it.");
-            panic!("[kernel] Cannot continue!");
-        }
-        Trap::Exception(Exception::IllegalInstruction) => {
-            trace!("[kernel] IllegalInstruction in application, kernel killed it.");
-            panic!("[kernel] Cannot continue!");
-        }
-        _ => {
-            panic!(
-                "Unsupported trap {:?}, stval = {:#x}!",
-                standard_trap,
-                register::stval::read() // other trap info
-            )
-        }
-    }
-    trap_return();
-}
-
-/// Return from a trap handler to user mode by restoring user context and switching address space.
-///
-/// This function sets up the trap entry for user mode, prepares the trap context pointer and user SATP,
-/// and jumps to the `__restore` trampoline routine. The trampoline restores all user registers and
-/// returns to user mode using `sret`. This function does not return; it will panic if reached.
-///
-/// # Panics
-/// This function will panic if control returns after the trampoline, which should be unreachable.
-#[unsafe(no_mangle)]
-pub fn trap_return() -> ! {
-    set_user_trap_entry();
-    let trap_ctx_ptr = TRAP_CONTEXT_ADDR;
-    let user_satp = current_satp();
-    unsafe extern "C" {
-        fn __alltraps();
-        fn __restore();
-    }
-
-    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE_ADDR;
-    unsafe {
-        asm!(
-            "fence.i", // prevent wrong i-cache
-            "jr {restore_va}",
-            restore_va = in(reg) restore_va,
-            in("a0") trap_ctx_ptr,
-            in("a1") user_satp
-        );
-    }
-
-    panic!("Unreachable in back_to_user!");
-}
+pub use context::TrapContext;

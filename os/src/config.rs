@@ -40,3 +40,5 @@ pub fn kernel_stack_pos(app_id: usize) -> (usize, usize) {
     let bottom = top - KERNEL_STACK_SIZE;
     (bottom, top)
 }
+
+pub use crate::board::{CLOCK_FREQ, MEMORY_END};

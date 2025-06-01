@@ -12,12 +12,13 @@ mod heap_allocator;
 mod memory_set;
 mod page_table;
 
+pub use address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 pub use memory_set::{KERNEL_SPACE, MapPermission, MemorySet};
-pub use page_table::PageTableEntry;
+pub use page_table::{PageTableEntry, translated_byte_buffer};
 
 use self::frame_allocator::frame_allocator_test;
 use self::heap_allocator::heap_test;
-use self::memory_set::activate_kernel;
+use self::memory_set::{activate_kernel, remap_kernel_test};
 
 /// initiate heap allocator, frame allocator and kernel space
 pub fn init() {
@@ -26,4 +27,5 @@ pub fn init() {
     frame_allocator::init_frame_allocator();
     frame_allocator_test();
     activate_kernel();
+    remap_kernel_test();
 }

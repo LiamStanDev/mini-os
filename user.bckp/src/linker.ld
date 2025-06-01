@@ -1,4 +1,3 @@
-
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
 
@@ -11,20 +10,22 @@ SECTIONS
         *(.text.entry)
         *(.text .text.*)
     }
+
     . = ALIGN(4K);
     .rodata : {
         *(.rodata .rodata.*)
-        *(.srodata .srodata.*)
     }
+
     . = ALIGN(4K);
+    /* .data and .bss has same access permssion. therefore, we */
+    /* can use the same section for both. */
     .data : {
         *(.data .data.*)
-        *(.sdata .sdata.*)
     }
     .bss : {
         *(.bss .bss.*)
-        *(.sbss .sbss.*)
     }
+
     /DISCARD/ : {
         *(.eh_frame)
         *(.debug*)
