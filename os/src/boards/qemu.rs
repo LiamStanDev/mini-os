@@ -1,5 +1,6 @@
 /// The clock frequency of the QEMU board in Hz.
-pub const CLOCK_FREQ: u64 = 12_500_000;
+/// Check `make device-tree` timebase-frequency
+pub const CLOCK_FREQ: u64 = 10_000_000;
 
 /// The end address of the physical memory available to the QEMU board.
 /// This constant defines the upper boundary of usable RAM.
