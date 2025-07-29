@@ -15,6 +15,8 @@ fn insert_app_data() -> Result<()> {
         .unwrap()
         .into_iter()
         .map(|dir_entry| {
+            // dir_entry is Result because error occur when iterating file e.g. file deleted,
+            // or no permission
             let mut name_with_ext = dir_entry.unwrap().file_name().into_string().unwrap();
             name_with_ext.drain(name_with_ext.find('.').unwrap()..name_with_ext.len());
             name_with_ext
@@ -37,6 +39,17 @@ _num_app:
         writeln!(f, r#"    .quad app_{i}_start"#)?;
     }
     writeln!(f, r#"    .quad app_{}_end"#, apps.len() - 1)?;
+
+    writeln!(
+        f,
+        r#"
+    .global _app_names
+_app_names:"#
+    )?;
+
+    for app in apps.iter() {
+        writeln!(f, r#"    .string "{app}""#)?;
+    }
 
     for (idx, app) in apps.iter().enumerate() {
         println!("app_{idx}: {app}");
