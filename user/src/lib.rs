@@ -1,14 +1,34 @@
 #![no_std]
 #![feature(linkage)]
+#![feature(alloc_error_handler)]
+
+use buddy_system_allocator::LockedHeap;
+use syscall::*;
 
 #[macro_use]
 pub mod console;
 mod lang_items;
 mod syscall;
 
+const USER_HEAP_SIZE: usize = 16384;
+
+static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
+
+#[global_allocator]
+static HEAP: LockedHeap<32> = LockedHeap::<32>::empty();
+
+#[alloc_error_handler]
+pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
+    panic!("Heap allocation error, layout = {:?}", layout);
+}
+
 #[unsafe(no_mangle)]
 #[unsafe(link_section = ".text.entry")]
 pub extern "C" fn _start() -> ! {
+    unsafe {
+        HEAP.lock()
+            .init(&raw mut HEAP_SPACE as usize, USER_HEAP_SIZE);
+    }
     exit(main());
     panic!("unreachable after sys_exit!");
 }
@@ -18,8 +38,6 @@ pub extern "C" fn _start() -> ! {
 fn main() -> i32 {
     panic!("Cannot find main!");
 }
-
-use syscall::*;
 
 pub fn read(fd: usize, buf: &mut [u8]) -> isize {
     sys_read(fd, buf)
