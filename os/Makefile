@@ -58,6 +58,12 @@ disasm-vim: kernel
 	@vim $(DISASM_TMP)
 	@rm $(DISASM_TMP)
 
+.PHONY: device-tree
+device-tree:
+	@qemu-system-riscv64 -machine virt,dumpdtb=/tmp/dump.dtb
+	@dtc -o /tmp/dump.dts /tmp/dump.dtb
+	@vim /tmp/dump.dts
+
 
 QEMU_NAME := qemu-system-riscv64
 QEMU_ARGS := -machine virt \

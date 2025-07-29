@@ -33,7 +33,7 @@ impl Log for SimpleLogger {
             color,
             display_level,
             record.args()
-        )
+        );
     }
 
     fn flush(&self) {}

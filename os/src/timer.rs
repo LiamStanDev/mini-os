@@ -5,6 +5,10 @@ use riscv::register::time;
 const TICKS_PER_SEC: u64 = 100;
 const MSEC_PER_SEC: u64 = 1000;
 
+/// Returns the current time in cycles since boot.
+///
+/// This function reads the 64-bit hardware timer and returns the
+/// number of cycles elapsed since the system started.
 pub fn get_time() -> u64 {
     time::read64()
 }

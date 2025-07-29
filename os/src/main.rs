@@ -8,6 +8,9 @@ extern crate alloc;
 #[macro_use]
 extern crate bitflags;
 
+use alloc::fmt::format;
+use alloc::string::String;
+use alloc::vec::{self, Vec};
 use log::*;
 
 #[path = "boards/qemu.rs"]
